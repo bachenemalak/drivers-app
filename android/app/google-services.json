@@ -1,0 +1,29 @@
+{
+  "project_info": {
+    "project_number": "492189475216",
+    "project_id": "drivers-app-e043b",
+    "storage_bucket": "drivers-app-e043b.firebasestorage.app"
+  },
+  "client": [
+    {
+      "client_info": {
+        "mobilesdk_app_id": "1:492189475216:android:413325d263975ba88f9315",
+        "android_client_info": {
+          "package_name": "com.example.car_app"
+        }
+      },
+      "oauth_client": [],
+      "api_key": [
+        {
+          "current_key": "AIzaSyCXzrLvf_RUwNzdm7JlouUKfIfapuNOh04"
+        }
+      ],
+      "services": {
+        "appinvite_service": {
+          "other_platform_oauth_client": []
+        }
+      }
+    }
+  ],
+  "configuration_version": "1"
+}
