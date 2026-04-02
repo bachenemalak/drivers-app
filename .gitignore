@@ -47,3 +47,6 @@ app.*.map.json
 # iOS
 ios/Pods/
 ios/.symlinks/
+
+# FVM Version Cache
+.fvm/

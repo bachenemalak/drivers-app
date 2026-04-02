@@ -3,6 +3,8 @@ import 'package:flutter/material.dart';
 import 'package:google_fonts/google_fonts.dart';
 
 import '../../navBars/supervisorNavbar.dart';
+import 'package:get/get.dart';
+import 'package:cloud_firestore/cloud_firestore.dart';
 
 class ManageRes extends StatefulWidget {
   const ManageRes({super.key});
@@ -14,6 +16,20 @@ class ManageRes extends StatefulWidget {
 class _ManageResState extends State<ManageRes> {
   @override
   Widget build(BuildContext context) {
+    String _getTimeAgo(Timestamp? timestamp) {
+  if (timestamp == null) return 'Recently';
+  
+  final date = timestamp.toDate();
+  final now = DateTime.now();
+  final difference = now.difference(date);
+  
+  if (difference.inMinutes < 1) return 'Just now';
+  if (difference.inMinutes < 60) return '${difference.inMinutes} min ago';
+  if (difference.inHours < 24) return '${difference.inHours} hours ago';
+  if (difference.inDays < 7) return '${difference.inDays} days ago';
+  
+  return '${difference.inDays ~/ 7} weeks ago';
+}
     int selectedIndex = 1;
     return SafeArea(
       child: Scaffold(
@@ -45,22 +61,61 @@ class _ManageResState extends State<ManageRes> {
                 ],
               ),
               SizedBox(height: 9),
-              OldResContainer(
-                clientName: ' Joe baiden',
-                type: 'point to point',
-                time: '2 min ago',
-              ),
-              SizedBox(height: 6),
-              OldResContainer(
-                clientName: ' Joe baiden',
-                type: 'point to point',
-                time: '2 min ago',
-              ),
-              SizedBox(height: 6),
-              OldResContainer(
-                clientName: ' Joe baiden',
-                type: 'point to point',
-                time: '2 min ago',
+              
+              StreamBuilder<QuerySnapshot>(
+                stream: FirebaseFirestore.instance
+                    .collection('trips')
+                    .orderBy('createdAt', descending: true)
+                    .limit(3)
+                    .snapshots(),
+                builder: (context, snapshot) {
+                  if (snapshot.hasError) {
+                    return Center(child: Text('Error: ${snapshot.error}'));
+                  }
+                  
+                  if (snapshot.connectionState == ConnectionState.waiting) {
+                    return Center(child: CircularProgressIndicator());
+                  }
+                  
+                  if (!snapshot.hasData || snapshot.data!.docs.isEmpty) {
+                    return Center(child: Text('No reservations found'));
+                  }
+                  
+                  final trips = snapshot.data!.docs;
+                  
+                  return ListView.builder(
+                    shrinkWrap: true,
+                    itemCount: trips.length,
+                    itemBuilder: (context, index) {
+                      final trip = trips[index];
+                      final tripData = trip.data() as Map<String, dynamic>;
+                      
+                      return Padding(
+                        padding: const EdgeInsets.only(bottom: 6),
+                        child: FutureBuilder<DocumentSnapshot>(
+                          future: FirebaseFirestore.instance
+                              .collection('clients')
+                              .doc(tripData['clientId'])
+                              .get(),
+                          builder: (context, clientSnapshot) {
+                            String clientName = 'Unknown Client';
+                            
+                            if (clientSnapshot.hasData && clientSnapshot.data!.exists) {
+                              final clientData = clientSnapshot.data!.data() as Map<String, dynamic>;
+                              clientName = clientData['fullName'] ?? 'Unknown Client';
+                            }
+                            
+                            return OldResContainer(
+                              clientName: clientName,
+                              type: tripData['tripType'] ?? 'Unknown',
+                              time: _getTimeAgo(tripData['createdAt']),
+                            );
+                          },
+                        ),
+                      );
+                    },
+                  );
+                },
               ),
               SizedBox(height: 30),
               Text('Create New Reseravtion', style: AppTextStyles.title),
@@ -71,9 +126,8 @@ class _ManageResState extends State<ManageRes> {
 
                 child: InkWell(
                   onTap: () {
-                    Navigator.pushNamed(context, '/createReservation');
-                  },
-
+  Get.toNamed('/createReservation');
+},
                   child: Container(
                     height: 100,
                     width: MediaQuery.of(context).size.width,

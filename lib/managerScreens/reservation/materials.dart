@@ -92,7 +92,10 @@ class SwitchButton extends StatelessWidget {
 
 class NextBtn extends StatelessWidget {
   final StepController controller = Get.put(StepController());
-  NextBtn({super.key});
+  final VoidCallback? onPressedCallback;
+  final bool Function()? validate; // Add this
+
+  NextBtn({super.key, this.onPressedCallback, this.validate}); // Add validate
 
   @override
   Widget build(BuildContext context) {
@@ -101,7 +104,20 @@ class NextBtn extends StatelessWidget {
         backgroundColor: Colors.black,
         minimumSize: Size(97, 45),
       ),
-      onPressed: controller.nextStep,
+      onPressed: () {
+        // Run validation first
+        if (validate != null && !validate!()) {
+          return; // Validation failed, don't navigate
+        }
+        
+        // Run custom callback
+        if (onPressedCallback != null) {
+          onPressedCallback!();
+        }
+        
+        // Navigate to next step
+        controller.nextStep();
+      },
       child: Text(
         'Next',
         style: GoogleFonts.montserrat(

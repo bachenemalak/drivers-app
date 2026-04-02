@@ -4,30 +4,88 @@ import 'package:car_app/managerScreens/reservation/materials.dart';
 import 'package:get/get.dart';
 import 'package:google_fonts/google_fonts.dart';
 
-class ScreenOne extends StatelessWidget {
-  final formController = Get.put(ClientFormController());
-  final NumberController controller = Get.put(NumberController());
-  ScreenOne({super.key});
+import 'package:firebase_core/firebase_core.dart';
+import 'package:cloud_firestore/cloud_firestore.dart';
 
+class ScreenOne extends StatelessWidget {
+  final  formController = Get.put(ClientFormController());
+  final NumberController controller = Get.put(NumberController());
+  final TripFormController tripController = Get.put(TripFormController());
+  
+
+   final RxString nameError = ''.obs;
+  final RxString phoneError = ''.obs;
+  final RxString emailError = ''.obs;
+  ScreenOne({super.key});
+  
+ final FirebaseFirestore firestore = FirebaseFirestore.instance;
+ 
+ 
+Future<String?> saveClient() async {
+  print('💾 Saving client...');
+  
+  try {
+    final Map<String, dynamic> clientData = {
+      'fullName': formController.fullName.value.trim(),
+      'phoneNumber': formController.phoneNumber.value.trim(),
+      'email': formController.email.value.trim(),
+      'createdAt': FieldValue.serverTimestamp(),
+    };
+    
+    final docRef = await firestore.collection('clients').add(clientData);
+    
+    print('✅ Client saved with ID: ${docRef.id}');
+    
+    Get.snackbar(
+      'Success',
+      'Client saved successfully!',
+      snackPosition: SnackPosition.BOTTOM,
+      backgroundColor: Colors.green,
+      colorText: Colors.white,
+    );
+    
+    return docRef.id; // Return the ID
+    
+  } catch (e) {
+    print('❌ Error: $e');
+    Get.snackbar(
+      'Error',
+      'Failed to save: ${e.toString()}',
+      snackPosition: SnackPosition.BOTTOM,
+      backgroundColor: Colors.red,
+      colorText: Colors.white,
+    );
+    return null;
+  }
+}
   @override
   Widget build(BuildContext context) {
     return Column(
       children: [
-        InfoInput(
-          title: 'Full Name',
-          hintxt: 'Enter Full Name',
-          onChanged: (value) => formController.fullName.value = value,
-        ),
-        InfoInput(
-          title: 'Phone number',
-          hintxt: 'Enter Phone Number',
-          onChanged: (value) => formController.phoneNumber.value = value,
-        ),
-        InfoInput(
-          title: 'Email',
-          hintxt: 'Enter Email',
-          onChanged: (value) => formController.email.value = value,
-        ),
+      
+      InfoInput(
+  title: 'Full Name',
+  hintxt: 'Enter Full Name',
+  tag: 'full_name',
+  errorText: nameError, // Pass error observable
+  onChanged: (value) {
+    formController.fullName.value = value;
+  },
+),
+InfoInput(
+  title: 'Phone number',
+  hintxt: 'Enter Phone Number',
+  tag: 'phone',
+  errorText: phoneError,
+  onChanged: (value) => formController.phoneNumber.value = value,
+),
+InfoInput(
+  title: 'Email',
+  hintxt: 'Enter Email',
+  tag: 'email',
+  errorText: emailError,
+  onChanged: (value) => formController.email.value = value,
+),
         SizedBox(height: 10),
         Obx(
           () => NumberContainer(
@@ -56,7 +114,54 @@ class ScreenOne extends StatelessWidget {
         ),
 
         devider,
-        Align(alignment: Alignment.bottomRight, child: NextBtn()),
+       Align(
+  alignment: Alignment.bottomRight,
+  child: NextBtn(
+  validate: () {
+    // Clear previous errors
+    nameError.value = '';
+    phoneError.value = '';
+    emailError.value = '';
+    
+    final name = Get.find<TextEditingController>(tag: 'full_name').text;
+    final phone = Get.find<TextEditingController>(tag: 'phone').text;
+    final email = Get.find<TextEditingController>(tag: 'email').text;
+    
+    bool isValid = true;
+    
+    if (name.trim().isEmpty) {
+      nameError.value = 'Full name is required';
+      print('nameError set to: ${nameError.value}');
+      isValid = false;
+    }
+    
+    if (phone.trim().isEmpty) {
+      phoneError.value = 'Phone number is required';
+      isValid = false;
+    }
+    
+    if (email.trim().isNotEmpty) {
+    if (!GetUtils.isEmail(email)) {
+      emailError.value = 'Enter a valid email address';
+      isValid = false;
+    }
+  }
+    
+    return isValid;
+  },
+  onPressedCallback: () {
+    // Save data to controllers (only runs if validation passes)
+    final clientController = Get.find<ClientFormController>();
+    final tripController = Get.find<TripFormController>();
+    
+    clientController.fullName.value = Get.find<TextEditingController>(tag: 'full_name').text;
+    clientController.phoneNumber.value = Get.find<TextEditingController>(tag: 'phone').text;
+    clientController.email.value = Get.find<TextEditingController>(tag: 'email').text;
+    tripController.passengers.value = controller.passengers.value.toString();
+    tripController.luggage.value = controller.luggage.value.toString();
+  },
+)
+),
       ],
     );
   }
@@ -66,49 +171,85 @@ class InfoInput extends StatelessWidget {
   final String title;
   final String hintxt;
   final Function(String) onChanged;
+  final String tag;
+  final RxString errorText;
+  
+  // Create controller outside build
+  late final TextEditingController controller;
 
-  const InfoInput({
+  InfoInput({
     super.key,
     required this.title,
     required this.hintxt,
     required this.onChanged,
-  });
+    required this.tag,
+    required this.errorText,
+  }) {
+    // Initialize once when widget is created
+    if (Get.isRegistered<TextEditingController>(tag: tag)) {
+      controller = Get.find<TextEditingController>(tag: tag);
+    } else {
+      controller = Get.put(TextEditingController(), tag: tag);
+    }
+  }
 
   @override
-  Widget build(BuildContext context) {
-    return Column(
-      crossAxisAlignment: CrossAxisAlignment.start,
-      children: [
-        Text(title, style: AppTextStyles.subtitle),
-        SizedBox(height: 3),
-        SizedBox(
-          height: MediaQuery.of(context).size.height * 0.07,
-          child: TextField(
-            onChanged: onChanged,
-            decoration: InputDecoration(
-              hintText: hintxt,
-              hintStyle: GoogleFonts.montserrat(
-                fontSize: 15,
-                fontWeight: FontWeight.w400,
-                color: Color.fromRGBO(159, 158, 158, 1),
-              ),
-              filled: true,
-              fillColor: Color.fromRGBO(237, 237, 237, 1),
-              enabledBorder: OutlineInputBorder(
-                borderRadius: BorderRadius.circular(10),
-                borderSide: BorderSide(color: Color.fromRGBO(237, 237, 237, 1)),
-              ),
-              focusedBorder: OutlineInputBorder(
-                borderRadius: BorderRadius.circular(10),
-                borderSide: BorderSide(color: Colors.black, width: 1),
-              ),
+Widget build(BuildContext context) {
+  return Obx(() => Column(
+    crossAxisAlignment: CrossAxisAlignment.start,
+    children: [
+      Text(title, style: AppTextStyles.subtitle),
+      SizedBox(height: 3),
+      SizedBox(
+        height: MediaQuery.of(context).size.height * 0.07,
+        child: TextField(
+          controller: controller,
+          onChanged: (value) {
+            onChanged(value);
+            if (errorText.value.isNotEmpty) {
+              errorText.value = '';
+            }
+          },
+          decoration: InputDecoration(
+            hintText: hintxt,
+            hintStyle: GoogleFonts.montserrat(
+              fontSize: 15,
+              fontWeight: FontWeight.w400,
+              color: Color.fromRGBO(159, 158, 158, 1),
+            ),
+            filled: true,
+            fillColor: Color.fromRGBO(237, 237, 237, 1),
+            enabledBorder: OutlineInputBorder(
+              borderRadius: BorderRadius.circular(10),
+              borderSide: BorderSide(color: Color.fromRGBO(237, 237, 237, 1)),
+            ),
+            focusedBorder: OutlineInputBorder(
+              borderRadius: BorderRadius.circular(10),
+              borderSide: BorderSide(color: Colors.black, width: 1),
             ),
           ),
         ),
-        SizedBox(height: 5),
-      ],
-    );
-  }
+      ),
+
+      // 👇 this now works
+      errorText.value.isNotEmpty
+          ? Padding(
+              padding: const EdgeInsets.only(top: 4, left: 8),
+              child: Text(
+                errorText.value,
+                style: GoogleFonts.montserrat(
+                  fontSize: 12,
+                  fontWeight: FontWeight.w400,
+                  color: Colors.red,
+                ),
+              ),
+            )
+          : const SizedBox(),
+
+      SizedBox(height: 5),
+    ],
+  ));
+}
 }
 
 class NumberContainer extends StatelessWidget {
@@ -227,6 +368,11 @@ class NumberController extends GetxController {
       luggage.value--;
     }
   }
+  void clear() {
+  passengers.value = 0;
+  luggage.value = 0;
+  isOn.value = true;
+}
 }
 
 //seocnd screen
@@ -291,8 +437,10 @@ class TapBar extends StatelessWidget {
 }
 
 class PointToPoint extends StatelessWidget {
-  final TextEditingController pickupController = TextEditingController();
-  final TextEditingController dropoffController = TextEditingController();
+   final TextEditingController pickupController = Get.put(TextEditingController(), tag: 'pickup'); // ✅ Created once
+  final TextEditingController dropoffController = Get.put(TextEditingController(), tag: 'dropoff'); 
+ final RxString pickupError = ''.obs;
+  final RxString dropoffError = ''.obs;
   PointToPoint({super.key});
 
   @override
@@ -333,34 +481,69 @@ class PointToPoint extends StatelessWidget {
             Column(
               children: [
                 THEtextfield(
-                  height: 46,
-                  width: 0.82,
-                  hintxt: 'Choose Pickup',
-                  controller: pickupController,
-                ),
-                THEtextfield(
-                  height: 46,
-                  width: 0.82,
-                  hintxt: 'Choose Drop-off',
-                  controller: dropoffController,
-                ),
+      height: 46,
+      width: 0.82,
+      hintxt: 'Choose Pickup',
+      controller: pickupController,
+      errorText: pickupError,
+    ),
+    THEtextfield(
+      height: 46,
+      width: 0.82,
+      hintxt: 'Choose Drop-off',
+      controller: dropoffController,
+      errorText: dropoffError,
+    ),
               ],
             ),
           ],
         ),
         devider,
         SizedBox(height: 10),
-        theRow,
+        Row(children: [Reviewbtn(), Spacer(), NextBtn(
+            validate: () {
+              pickupError.value = '';
+              dropoffError.value = '';
+              
+              final pickup = pickupController.text;
+              final dropoff = dropoffController.text;
+              
+              bool isValid = true;
+              
+              if (pickup.trim().isEmpty) {
+                pickupError.value = 'Pickup location is required';
+                isValid = false;
+              }
+              
+              if (dropoff.trim().isEmpty) {
+                dropoffError.value = 'Drop-off location is required';
+                isValid = false;
+              }
+              
+              return isValid;
+            },
+            onPressedCallback: () {
+              final tripController = Get.find<TripFormController>();
+              tripController.tripType.value = 'Point-to-Point';
+              tripController.startingPoint.value = pickupController.text;
+              tripController.endPoint.value = dropoffController.text;
+            },
+          )])
       ],
     );
   }
 }
 
 class TransfersAirport extends StatelessWidget {
-  final TextEditingController airportController = TextEditingController();
-  final TextEditingController terminalController = TextEditingController();
-  final TextEditingController flightnbrController = TextEditingController();
-  final TextEditingController directionController = TextEditingController();
+    final TextEditingController airportController = Get.put(TextEditingController(), tag: 'airport');
+  final TextEditingController terminalController = Get.put(TextEditingController(), tag: 'terminal');
+  final TextEditingController flightnbrController = Get.put(TextEditingController(), tag: 'flight');
+  final TextEditingController directionController = Get.put(TextEditingController(), tag: 'direction');
+  
+  final RxString airportError = ''.obs;
+  final RxString terminalError = ''.obs;
+  final RxString flightError = ''.obs;
+  final RxString directionError = ''.obs;
   TransfersAirport({super.key});
 
   @override
@@ -380,26 +563,27 @@ class TransfersAirport extends StatelessWidget {
               mainAxisAlignment: MainAxisAlignment.center,
               children: [
                 Radio<int>(
-                  activeColor: Colors.black,
-
-                  value: 1,
-                  groupValue: controller.selectedValue.value,
-                  onChanged: (value) {
-                    controller.selectedValue.value = value!;
-                  },
-                ),
-                Text("Pick Up", style: AppTextStyles.subtitle),
-
-                const SizedBox(width: 80),
-
-                Radio<int>(
-                  activeColor: Colors.black,
-                  value: 2,
-                  groupValue: controller.selectedValue.value,
-                  onChanged: (value) {
-                    controller.selectedValue.value = value!;
-                  },
-                ),
+        activeColor: Colors.black,
+        value: 1,
+        groupValue: controller.selectedValue.value,
+        onChanged: (value) {
+          controller.selectedValue.value = value!;
+          final tripController = Get.find<TripFormController>();
+          tripController.transferType.value = 'Pick Up';
+        },
+      ),
+      Text("Pick Up", style: AppTextStyles.subtitle),
+      const SizedBox(width: 80),
+      Radio<int>(
+        activeColor: Colors.black,
+        value: 2,
+        groupValue: controller.selectedValue.value,
+        onChanged: (value) {
+          controller.selectedValue.value = value!;
+          final tripController = Get.find<TripFormController>();
+          tripController.transferType.value = 'Drop At';
+        },
+      ),
                 Text("Drop At", style: AppTextStyles.subtitle),
               ],
             ),
@@ -411,6 +595,7 @@ class TransfersAirport extends StatelessWidget {
             height: 46,
             width: 0.9,
             label: 'Airport',
+            errorText: airportError,
           ),
           Row(
             mainAxisAlignment: MainAxisAlignment.start,
@@ -421,6 +606,7 @@ class TransfersAirport extends StatelessWidget {
                 height: 50,
                 width: 0.259,
                 label: 'Terminal',
+                errorText:terminalError ,
               ),
               SizedBox(width: 10),
               THEtextfield(
@@ -429,6 +615,7 @@ class TransfersAirport extends StatelessWidget {
                 height: 50,
                 width: 0.39,
                 label: 'Flight Number',
+                errorText: flightError,
               ),
               SizedBox(width: 10),
               Column(
@@ -465,9 +652,52 @@ class TransfersAirport extends StatelessWidget {
             height: 46,
             width: 0.9,
             label: 'Direction',
+            errorText: directionError,
           ),
           devider,
-          theRow,
+          Row(children: [Reviewbtn(), Spacer(), // At the bottom of TransfersAirport widget
+ NextBtn(
+              validate: () {
+                airportError.value = '';
+                terminalError.value = '';
+                flightError.value = '';
+                directionError.value = '';
+                
+                final airport = airportController.text;
+                final terminal = terminalController.text;
+                final flight = flightnbrController.text;
+                final direction = directionController.text;
+                
+                bool isValid = true;
+                
+                if (airport.trim().isEmpty) {
+                  airportError.value = 'Airport name is required';
+                  isValid = false;
+                }
+                
+                if (terminal.trim().isEmpty) {
+                  terminalError.value = 'Terminal is required';
+                  isValid = false;
+                }
+                
+                if (flight.trim().isEmpty) {
+                  flightError.value = 'Flight number is required';
+                  isValid = false;
+                }
+                
+                if (direction.trim().isEmpty) {
+                  directionError.value = 'Direction is required';
+                  isValid = false;
+                }
+                
+                return isValid;
+              },
+              onPressedCallback: () {
+                final tripController = Get.find<TripFormController>();
+                tripController.tripType.value = 'Airport Transfer';
+                tripController.startingPoint.value = airportController.text;
+              },
+            )])
         ],
       ),
     );
@@ -479,9 +709,12 @@ class RadioController extends GetxController {
 }
 
 class AsDirected extends StatelessWidget {
-  final TextEditingController pickupADController = TextEditingController();
-  final TextEditingController durationController = TextEditingController();
-  final TextEditingController specialnotesController = TextEditingController();
+  final TextEditingController pickupADController = Get.put(TextEditingController(), tag: 'as_pickup');
+  final TextEditingController durationController = Get.put(TextEditingController(), tag: 'duration');
+  final TextEditingController specialnotesController = Get.put(TextEditingController(), tag: 'as_note');
+   final RxString pickupError = ''.obs;
+  final RxString durationError = ''.obs;
+  final RxString noteError = ''.obs;
   AsDirected({super.key});
 
   @override
@@ -500,6 +733,7 @@ class AsDirected extends StatelessWidget {
           height: 50,
           width: 0.9,
           label: 'Pickup',
+          errorText: pickupError,
         ),
         THEtextfield(
           hintxt: '',
@@ -507,6 +741,7 @@ class AsDirected extends StatelessWidget {
           height: 50,
           width: 0.9,
           label: 'Duration',
+          errorText: durationError,
         ),
         THEtextfield(
           hintxt: 'Type...',
@@ -514,9 +749,43 @@ class AsDirected extends StatelessWidget {
           height: 50,
           width: 0.9,
           label: 'Special Note',
+          errorText: noteError,
         ),
         devider,
-        theRow,
+        Row(children: [Reviewbtn(), Spacer(), // At the bottom of TransfersAirport widget
+// At the bottom of AsDirected widget
+NextBtn(
+            validate: () {
+              pickupError.value = '';
+              durationError.value = '';
+              noteError.value = '';
+              
+              final pickup = pickupADController.text;
+              final duration = durationController.text;
+              
+              
+              bool isValid = true;
+              
+              if (pickup.trim().isEmpty) {
+                pickupError.value = 'Pickup point is required';
+                isValid = false;
+              }
+              
+              if (duration.trim().isEmpty) {
+                durationError.value = 'Duration is required';
+                isValid = false;
+              }
+              
+              
+              
+              return isValid;
+            },
+            onPressedCallback: () {
+              final tripController = Get.find<TripFormController>();
+              tripController.tripType.value = 'As Directed';
+              tripController.startingPoint.value = pickupADController.text;
+            },
+          )])
       ],
     );
   }
@@ -528,6 +797,8 @@ class THEtextfield extends StatelessWidget {
   final double height;
   final double width;
   final TextEditingController controller;
+  final RxString errorText;
+
   const THEtextfield({
     super.key,
     required this.hintxt,
@@ -535,6 +806,7 @@ class THEtextfield extends StatelessWidget {
     required this.height,
     required this.width,
     this.label,
+    required this.errorText,
   });
 
   @override
@@ -558,12 +830,16 @@ class THEtextfield extends StatelessWidget {
           SizedBox(
             height: height,
             width: MediaQuery.of(context).size.width * width,
-
             child: TextField(
               maxLines: null,
               expands: true,
               textAlignVertical: TextAlignVertical.top,
               controller: controller,
+              onChanged: (value) {
+                if (errorText.value.isNotEmpty && value.trim().isNotEmpty) {
+                  errorText.value = '';
+                }
+              },
               decoration: InputDecoration(
                 hintText: hintxt,
                 hintStyle: GoogleFonts.montserrat(
@@ -581,6 +857,21 @@ class THEtextfield extends StatelessWidget {
                 ),
               ),
             ),
+          ),
+          Obx(
+            () => errorText.value.isNotEmpty
+                ? Padding(
+                    padding: const EdgeInsets.only(top: 4, left: 8),
+                    child: Text(
+                      errorText.value,
+                      style: GoogleFonts.montserrat(
+                        fontSize: 12,
+                        fontWeight: FontWeight.w400,
+                        color: Colors.red,
+                      ),
+                    ),
+                  )
+                : const SizedBox(),
           ),
         ],
       ),

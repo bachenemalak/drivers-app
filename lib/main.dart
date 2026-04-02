@@ -17,6 +17,7 @@ import 'package:car_app/signInANDsignUp/signIn.dart';
 import 'package:car_app/signInANDsignUp/signup.dart';
 import 'package:car_app/signInANDsignUp/startingpage.dart';
 import 'package:flutter/material.dart';
+import 'package:get/get.dart';  // Add this import
 import 'package:google_fonts/google_fonts.dart';
 import 'firebase_options.dart';
 import 'package:firebase_core/firebase_core.dart';
@@ -34,36 +35,33 @@ void main() async {
 class MyApp extends StatelessWidget {
   const MyApp({super.key});
 
-  // This widget is the root of your application.
   @override
   Widget build(BuildContext context) {
-    return MaterialApp(
+    return GetMaterialApp(  // ← CHANGE THIS from MaterialApp to GetMaterialApp
       theme: ThemeData(textTheme: GoogleFonts.montserratTextTheme()),
       debugShowCheckedModeBanner: false,
       title: 'Car app',
-       routes: {
-        '/': (context) => Startingpage(),
-        '/chooseRole': (context) => chooserole(),
-        '/signIn': (context) => SignIn(),
-        '/signUp': (context) => signup(),
-        '/forgotPassword': (context) => forgotpassword(),
-        '/manageDrivers': (context) => drivermanagment(),
-        '/driverDetails': (context) => ManageDriversScreen(),
-        '/dashboard': (context) => Dashboard(),
-        '/clientsDetails': (context) => ClientDetails(),
-        '/clientsManagment': (context) => Manageclients(),
-        '/manageReservation': (context) => ManageRes(),
-        '/createReservation': (context) => CreateRes(),
-        '/managerProfile': (context) => ManagerProfile(),
-        '/managerNotifications': (context) => ManagerNotifications(),
-        '/driverHomeScreen': (context) => DriverHomeScreen(),
-        '/manageTrips': (context) => DriverTrips(),
-        '/driverProfile': (context) => DriverProfile(),
-        '/driverNotificaations': (context) => DriverNotifications(),
-      },
-     
+      initialRoute: '/',  // Add this
+      getPages: [  // Use getPages instead of routes for GetX
+        GetPage(name: '/', page: () => Startingpage()),
+        GetPage(name: '/chooseRole', page: () => chooserole()),
+        GetPage(name: '/signIn', page: () => SignIn()),
+        GetPage(name: '/signUp', page: () => signup()),
+        GetPage(name: '/forgotPassword', page: () => forgotpassword()),
+        GetPage(name: '/manageDrivers', page: () => drivermanagment()),
+        GetPage(name: '/driverDetails', page: () => ManageDriversScreen()),
+        GetPage(name: '/dashboard', page: () => Dashboard()),
+        GetPage(name: '/clientsDetails', page: () => ClientDetails(clientId: Get.arguments?.toString() ?? '')),
+        GetPage(name: '/clientsManagment', page: () => Manageclients()),
+        GetPage(name: '/manageReservation', page: () => ManageRes()),
+        GetPage(name: '/createReservation', page: () => CreateRes()),
+        GetPage(name: '/managerProfile', page: () => ManagerProfile()),
+        GetPage(name: '/managerNotifications', page: () => ManagerNotifications()),
+        GetPage(name: '/driverHomeScreen', page: () => DriverHomeScreen()),
+        GetPage(name: '/manageTrips', page: () => DriverTrips()),
+        GetPage(name: '/driverProfile', page: () => DriverProfile()),
+        GetPage(name: '/driverNotificaations', page: () => DriverNotifications()),
+      ],
     );
   }
 }
-
-

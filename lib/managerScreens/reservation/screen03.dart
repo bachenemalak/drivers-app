@@ -2,11 +2,16 @@ import 'package:flutter/material.dart';
 import 'package:car_app/managerScreens/reservation/materials.dart';
 import 'package:get/get.dart';
 import 'package:intl/intl.dart';
+import 'package:car_app/managerScreens/reservation/screen06.dart';
+import 'package:google_fonts/google_fonts.dart';
 
 class ScreenThree extends StatelessWidget {
   final dateController = TextEditingController();
   final timeController = TextEditingController();
   final controller = Get.put(DateTimeController());
+
+   final RxString dateError = ''.obs;
+  final RxString timeError = ''.obs;
   ScreenThree({super.key});
 
   @override
@@ -43,6 +48,17 @@ class ScreenThree extends StatelessWidget {
             },
           ),
         ),
+        Obx(
+  () => dateError.value.isNotEmpty
+      ? Padding(
+          padding: const EdgeInsets.only(top: 4, left: 8),
+          child: Text(
+            dateError.value,
+            style: GoogleFonts.montserrat(fontSize: 12, color: Colors.red),
+          ),
+        )
+      : const SizedBox(),
+),
 
         Obx(
           () =>
@@ -119,7 +135,17 @@ class ScreenThree extends StatelessWidget {
             },
           ),
         ),
-
+Obx(
+  () => timeError.value.isNotEmpty
+      ? Padding(
+          padding: const EdgeInsets.only(top: 4, left: 8),
+          child: Text(
+            timeError.value,
+            style: GoogleFonts.montserrat(fontSize: 12, color: Colors.red),
+          ),
+        )
+      : const SizedBox(),
+),
         Obx(
           () =>
               controller.showTimePicker.value
@@ -139,7 +165,36 @@ class ScreenThree extends StatelessWidget {
         ),
         SizedBox(height: 25),
         devider,
-        theRow,
+        Row(children: [Reviewbtn(), Spacer(), // At the bottom of TransfersAirport widget
+// At the bottom of AsDirected widget
+// At the bottom of ScreenThree
+NextBtn(
+  validate: () {
+    dateError.value = '';
+    timeError.value = '';
+    
+    final dateTimeController = Get.find<DateTimeController>();
+    
+    if (dateTimeController.selectedDate.value == null) {
+      dateError.value = 'Please select a date';
+      return false;
+    }
+    
+    if (dateTimeController.selectedTime.value == null) {
+      timeError.value = 'Please select a time';
+      return false;
+    }
+    
+    return true;
+  },
+  onPressedCallback: () {
+    final tripController = Get.find<TripFormController>();
+    final dateTimeController = Get.find<DateTimeController>();
+    
+    tripController.date.value = dateTimeController.dateText;
+    tripController.time.value = dateTimeController.timeText;
+  },
+)])
       ],
     );
   }

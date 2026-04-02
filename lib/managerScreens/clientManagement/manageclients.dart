@@ -1,7 +1,8 @@
 import 'package:car_app/navBars/supervisorNavbar.dart';
 
 import 'package:flutter/material.dart';
-
+import 'package:cloud_firestore/cloud_firestore.dart';
+import 'package:get/get.dart';
 class Manageclients extends StatefulWidget {
   const Manageclients({super.key});
 
@@ -10,16 +11,57 @@ class Manageclients extends StatefulWidget {
 }
 
 class _manageclientsState extends State<Manageclients> {
-  List<String> get demoDrivers => [
-    'Chourouk Ba',
-    'Djihane Lao',
-    'Racha Chouail',
-    'Malak Bachene',
-  ];
+  final TextEditingController searchController = TextEditingController();
+  String searchQuery = '';
+  List<QueryDocumentSnapshot> searchResults = [];
+  bool isSearching = false;
+  bool isSearchLoading = false;
+
+  Future<void> searchClients(String query) async {
+    if (query.isEmpty) {
+      setState(() {
+        isSearching = false;
+        searchResults = [];
+        isSearchLoading = false;
+      });
+      return;
+    }
+
+    setState(() {
+      isSearching = true;
+      isSearchLoading = true;
+    });
+
+    try {
+      // Search ALL clients by name or phone
+      final results = await FirebaseFirestore.instance
+          .collection('clients')
+          .get();
+
+      final filtered = results.docs.where((client) {
+        final data = client.data() as Map<String, dynamic>;
+        final name = data['fullName']?.toString().toLowerCase() ?? '';
+        final phone = data['phoneNumber']?.toString() ?? '';
+        final searchLower = query.toLowerCase().trim();
+        
+        return name.contains(searchLower) || phone.contains(searchLower);
+      }).toList();
+
+      setState(() {
+        searchResults = filtered;
+        isSearchLoading = false;
+      });
+    } catch (e) {
+      print('Search error: $e');
+      setState(() {
+        searchResults = [];
+        isSearchLoading = false;
+      });
+    }
+  }
 
   @override
   Widget build(BuildContext context) {
-    final drivers = demoDrivers;
     final size = MediaQuery.of(context).size;
     int selectedIndex = 3;
 
@@ -34,7 +76,6 @@ class _manageclientsState extends State<Manageclients> {
             });
           },
         ),
-
         body: Padding(
           padding: const EdgeInsets.fromLTRB(16, 25, 16, 16),
           child: Column(
@@ -67,6 +108,10 @@ class _manageclientsState extends State<Manageclients> {
                         borderRadius: BorderRadius.circular(20),
                       ),
                       child: TextField(
+                        controller: searchController,
+                        onChanged: (value) {
+                          searchClients(value);
+                        },
                         decoration: InputDecoration(
                           hintText: ' Search.. ',
                           border: InputBorder.none,
@@ -121,7 +166,6 @@ class _manageclientsState extends State<Manageclients> {
                         ),
                       ],
                     ),
-
                     onTap: () {
                       showModalBottomSheet(
                         context: context,
@@ -131,11 +175,10 @@ class _manageclientsState extends State<Manageclients> {
                             top: Radius.circular(25),
                           ),
                         ),
-                        builder:
-                            (context) => FractionallySizedBox(
-                              heightFactor: 0.45,
-                              child: const DriverFilterPanel(),
-                            ),
+                        builder: (context) => const FractionallySizedBox(
+                          heightFactor: 0.45,
+                          child: DriverFilterPanel(),
+                        ),
                       );
                     },
                   ),
@@ -145,13 +188,54 @@ class _manageclientsState extends State<Manageclients> {
               SizedBox(height: size.height * 0.02),
 
               Expanded(
-                child: ListView.builder(
-                  itemCount: drivers.length,
-                  itemBuilder: (context, idx) {
-                    final name = drivers[idx];
-                    return DriverCard(name: name);
-                  },
-                ),
+                child: isSearching
+                    ? isSearchLoading
+                        ? Center(child: CircularProgressIndicator())
+                        : searchResults.isEmpty
+                            ? Center(child: Text('No clients found'))
+                            : ListView.builder(
+                                itemCount: searchResults.length,
+                                itemBuilder: (context, idx) {
+                                  final client = searchResults[idx];
+                                  final data = client.data() as Map<String, dynamic>;
+                                  final name = data['fullName'] ?? 'Unknown';
+                                  return ClientCard(
+                                    name: name,
+                                    clientId: client.id,
+                                  );
+                                },
+                              )
+                    : StreamBuilder<QuerySnapshot>(
+                        stream: FirebaseFirestore.instance
+                            .collection('clients')
+                            .orderBy('createdAt', descending: true)
+                            .limit(20)
+                            .snapshots(),
+                        builder: (context, snapshot) {
+                          if (snapshot.hasError) {
+                            return Center(child: Text('Error: ${snapshot.error}'));
+                          }
+                          if (snapshot.connectionState == ConnectionState.waiting) {
+                            return Center(child: CircularProgressIndicator());
+                          }
+                          if (!snapshot.hasData || snapshot.data!.docs.isEmpty) {
+                            return Center(child: Text('No clients found'));
+                          }
+                          final clients = snapshot.data!.docs;
+                          return ListView.builder(
+                            itemCount: clients.length,
+                            itemBuilder: (context, idx) {
+                              final client = clients[idx];
+                              final data = client.data() as Map<String, dynamic>;
+                              final name = data['fullName'] ?? 'Unknown';
+                              return ClientCard(
+                                name: name,
+                                clientId: client.id,
+                              );
+                            },
+                          );
+                        },
+                      ),
               ),
             ],
           ),
@@ -161,6 +245,70 @@ class _manageclientsState extends State<Manageclients> {
   }
 }
 
+class ClientCard extends StatelessWidget {
+  final String name;
+  final String clientId;
+
+  const ClientCard({super.key, required this.name, required this.clientId});
+
+  @override
+  Widget build(BuildContext context) {
+    final size = MediaQuery.of(context).size;
+    
+    // If clientId is null or empty, don't show the dots menu
+    final hasValidId = clientId.isNotEmpty;
+    
+    return Container(
+      margin: EdgeInsets.symmetric(vertical: 8),
+      padding: EdgeInsets.all(size.height * 0.018),
+      decoration: BoxDecoration(
+        color: Colors.white,
+        borderRadius: BorderRadius.circular(20),
+        boxShadow: [
+          BoxShadow(
+            color: Colors.black.withOpacity(0.04),
+            blurRadius: 2,
+            offset: const Offset(2, 2),
+          ),
+        ],
+      ),
+      child: Row(
+        children: [
+          CircleAvatar(
+            radius: size.width * 0.06,
+            backgroundColor: Colors.grey.shade200,
+            child: Text(
+              name.isNotEmpty ? name[0].toUpperCase() : '?',
+              style: TextStyle(
+                fontSize: size.width * 0.05,
+                fontWeight: FontWeight.bold,
+                color: Colors.grey.shade700,
+              ),
+            ),
+          ),
+          SizedBox(width: size.width * 0.03),
+          Expanded(
+            child: Row(
+              children: [
+                Text(
+                  name,
+                  style: TextStyle(
+                    fontFamily: 'Montserrat',
+                    fontSize: size.width * 0.04,
+                    fontWeight: FontWeight.w700,
+                  ),
+                ),
+                Spacer(),
+                if (hasValidId) // Only show if clientId exists
+                  DotsMenuOverlay(clientId: clientId),
+              ],
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+}
 class DriverCard extends StatelessWidget {
   final String name;
 
@@ -362,7 +510,9 @@ class _DriverFilterPanelState extends State<DriverFilterPanel> {
 }
 
 class DotsMenuOverlay extends StatefulWidget {
-  DotsMenuOverlay({super.key});
+  final String ? clientId;
+  
+  const DotsMenuOverlay({super.key,  this.clientId});
 
   @override
   _DotsMenuOverlayState createState() => _DotsMenuOverlayState();
@@ -379,69 +529,37 @@ class _DotsMenuOverlayState extends State<DotsMenuOverlay> {
     final size = MediaQuery.of(context).size;
 
     _overlayEntry = OverlayEntry(
-      builder:
-          (context) => Stack(
-            children: [
-              // Background that closes on tap
-              Positioned.fill(
-                child: GestureDetector(
-                  onTap: _hideOverlay,
-
-                  child: Container(color: Colors.transparent),
+      builder: (context) => Stack(
+        children: [
+          Positioned.fill(
+            child: GestureDetector(
+              onTap: _hideOverlay,
+              child: Container(color: Colors.transparent),
+            ),
+          ),
+          Positioned(
+            top: offset.dy - 6,
+            left: offset.dx - size.width * 0.3,
+            child: Material(
+              color: Colors.transparent,
+              child: Container(
+                width: size.width * 0.4,
+                padding: EdgeInsets.all(12),
+                decoration: BoxDecoration(
+                  color: Color.fromARGB(255, 227, 221, 221),
+                  borderRadius: BorderRadius.circular(12),
                 ),
-              ),
-
-              Positioned(
-                top: offset.dy - 6,
-                left: offset.dx - size.width * 0.3,
-                child: Material(
-                  color: Colors.transparent,
-                  child: Container(
-                    width: size.width * 0.4,
-                    padding: EdgeInsets.all(12),
-
-                    decoration: BoxDecoration(
-                      color: Color.fromARGB(255, 227, 221, 221),
-                      borderRadius: BorderRadius.circular(12),
-                    ),
-                    child: Column(
-                      mainAxisSize: MainAxisSize.min,
-
-                      crossAxisAlignment: CrossAxisAlignment.start,
+                child: Column(
+                  mainAxisSize: MainAxisSize.min,
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Row(
+                      mainAxisAlignment: MainAxisAlignment.spaceBetween,
                       children: [
-                        Row(
-                          mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                          children: [
-                            GestureDetector(
-                              onTap: () => _hideOverlay(),
-                              child: Text(
-                                "Assign driver",
-                                style: TextStyle(
-                                  fontSize: size.width * 0.04,
-                                  fontWeight: FontWeight.w400,
-                                  fontFamily: 'Montserrat',
-                                  color: Colors.black,
-                                ),
-                              ),
-                            ),
-                            Icon(
-                              Icons.more_vert,
-                              color: Colors.black,
-                              size: size.width * 0.05,
-                            ),
-                          ],
-                        ),
-
-                        // Menu items
-                        Divider(color: Color.fromARGB(172, 155, 149, 152)),
                         GestureDetector(
-                          onTap: () {
-                            _hideOverlay();
-                            Navigator.pushNamed(context, '/clientsDetails');
-                          },
+                          onTap: () => _hideOverlay(),
                           child: Text(
-                            "View trips",
-                            textAlign: TextAlign.start,
+                            "Assign driver",
                             style: TextStyle(
                               fontSize: size.width * 0.04,
                               fontWeight: FontWeight.w400,
@@ -450,13 +568,42 @@ class _DotsMenuOverlayState extends State<DotsMenuOverlay> {
                             ),
                           ),
                         ),
+                        Icon(
+                          Icons.more_vert,
+                          color: Colors.black,
+                          size: size.width * 0.05,
+                        ),
                       ],
                     ),
-                  ),
+                    Divider(color: Color.fromARGB(172, 155, 149, 152)),
+                    GestureDetector(
+                     onTap: () {
+  _hideOverlay();
+  print('Navigating to client details with ID: ${widget.clientId}'); // Debug
+  if (widget.clientId != null && widget.clientId!.isNotEmpty) {
+    Get.toNamed('/clientsDetails', arguments: widget.clientId);
+  } else {
+    print('Client ID is null or empty!');
+  }
+},
+                      child: Text(
+                        "View trips",
+                        textAlign: TextAlign.start,
+                        style: TextStyle(
+                          fontSize: size.width * 0.04,
+                          fontWeight: FontWeight.w400,
+                          fontFamily: 'Montserrat',
+                          color: Colors.black,
+                        ),
+                      ),
+                    ),
+                  ],
                 ),
               ),
-            ],
+            ),
           ),
+        ],
+      ),
     );
 
     Overlay.of(context).insert(_overlayEntry!);
@@ -477,8 +624,7 @@ class _DotsMenuOverlayState extends State<DotsMenuOverlay> {
   Widget build(BuildContext context) {
     final size = MediaQuery.of(context).size;
     return GestureDetector(
-      onTap:
-          () => _overlayEntry == null ? _showOverlay(context) : _hideOverlay(),
+      onTap: () => _overlayEntry == null ? _showOverlay(context) : _hideOverlay(),
       child: Container(
         padding: const EdgeInsets.all(8),
         child: Icon(

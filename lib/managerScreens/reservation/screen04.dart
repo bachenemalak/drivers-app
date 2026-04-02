@@ -2,6 +2,7 @@ import 'package:car_app/managerScreens/reservation/res_screens.dart';
 import 'package:flutter/material.dart';
 import 'package:car_app/managerScreens/reservation/materials.dart';
 import 'package:get/get.dart';
+import 'package:car_app/managerScreens/reservation/screen06.dart';
 
 class ScreenFour extends StatelessWidget {
   const ScreenFour({super.key});
@@ -115,7 +116,21 @@ class ScreenFour extends StatelessWidget {
         ),
         SizedBox(height: 50),
         devider,
-        theRow,
+         Row(children: [Reviewbtn(), Spacer(), // At the bottom of TransfersAirport widget
+// At the bottom of AsDirected widget
+// At the bottom of ScreenThree
+// At the bottom of ScreenFour
+NextBtn(
+  onPressedCallback: () {
+    final tripController = Get.find<TripFormController>();
+    final vehicleController = Get.find<VehicleDetailsController>();
+    
+    tripController.vehicleClass.value = vehicleController.selectedVehicle.value;
+    tripController.capacity.value = vehicleController.capacity.value;
+    tripController.childSeat.value = vehicleController.childSeat.value;
+    tripController.wheelchair.value = vehicleController.wheelchair.value;
+  },
+)])
       ],
     );
   }
